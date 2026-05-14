@@ -1,27 +1,33 @@
-# Dependencias
+# dependencias
 node_modules
-npm-debug.log
 
-# Logs
+# logs
 logs
 *.log
+npm-debug.log*
 
-# Variables de entorno
+# variables de entorno
 .env
+.env.*
 
-# Git
+# git
 .git
 .gitignore
 
-# Docker
-Dockerfile
+# docker
 .dockerignore
+docker-compose.yml
 
-# IDEs
+# ide
 .vscode
 .idea
 
-
-# Sistema operativo
+# sistema operativo
 .DS_Store
 Thumbs.db
+
+# cache y temporales
+.cache
+tmp
+temp
+coverage
