@@ -1,0 +1,27 @@
+# Dependencias
+node_modules
+npm-debug.log
+
+# Logs
+logs
+*.log
+
+# Variables de entorno
+.env
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# IDEs
+.vscode
+.idea
+
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
