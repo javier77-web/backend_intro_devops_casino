@@ -2,7 +2,9 @@
 services:
 
   db:
-    image: postgres:16-alpine
+    build: ./db
+
+    image: casino-db:latest
     container_name: casino-db
 
     environment:
@@ -12,7 +14,6 @@ services:
 
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
 
     networks:
       - casino-net
@@ -26,20 +27,15 @@ services:
 
   backend:
     build: .
+
     image: casino-backend:latest
     container_name: casino-backend
 
     ports:
       - "3000:3000"
 
-    environment:
-      PORT: "3000"
-      DB_HOST: "db"
-      DB_PORT: "5432"
-      DB_USER: "casino"
-      DB_PASSWORD: "casino"
-      DB_NAME: "casino_db"
-      JWT_SECRET: "cambiar_en_produccion"
+    env_file:
+      - .env
 
     depends_on:
       db:
@@ -51,6 +47,7 @@ services:
   frontend:
     build:
       context: ../frontend_intro_devops_casino
+
     image: casino-frontend:latest
     container_name: casino-frontend
 

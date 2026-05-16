@@ -1,0 +1,37 @@
+carpeta db
+
+esta carpeta contiene la configuracion de la base de datos del proyecto casino.
+
+archivos:
+
+Dockerfile
+crea una imagen personalizada de PostgreSQL para el proyecto.
+copia automaticamente el archivo init.sql dentro del contenedor para que postgres cree las tablas al iniciar.
+
+init.sql
+contiene el esquema inicial de la base de datos.
+crea tablas como:
+
+usuarios
+juegos
+transacciones
+sesiones_juego
+
+tambien inserta datos iniciales como el catalogo de juegos.
+
+como funciona:
+
+cuando docker compose levanta el servicio db por primera vez:
+
+se construye la imagen usando el Dockerfile
+postgres detecta el archivo init.sql
+ejecuta automaticamente el script
+la base de datos queda lista para usar
+
+esto permite:
+
+automatizar la inicializacion de la bd
+evitar crear tablas manualmente
+facilitar despliegues
+mantener persistencia usando volumenes docker
+hacer el proyecto portable para cualquier integrante del equipo
