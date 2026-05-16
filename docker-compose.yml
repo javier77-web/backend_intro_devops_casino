@@ -1,1 +1,74 @@
-#archivo para levantar varios comntenedores a la vez
+#archivo para levantar varios contenedores a la vez
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: casino-db
+
+    environment:
+      POSTGRES_USER: casino
+      POSTGRES_PASSWORD: casino
+      POSTGRES_DB: casino_db
+
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
+    networks:
+      - casino-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casino -d casino_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build: .
+    image: casino-backend:latest
+    container_name: casino-backend
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      PORT: "3000"
+      DB_HOST: "db"
+      DB_PORT: "5432"
+      DB_USER: "casino"
+      DB_PASSWORD: "casino"
+      DB_NAME: "casino_db"
+      JWT_SECRET: "cambiar_en_produccion"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - casino-net
+
+  frontend:
+    build:
+      context: ../frontend_intro_devops_casino
+    image: casino-frontend:latest
+    container_name: casino-frontend
+
+    ports:
+      - "80:8080"
+
+    environment:
+      BACKEND_HOST: "backend"
+
+    depends_on:
+      - backend
+
+    networks:
+      - casino-net
+
+networks:
+  casino-net:
+    driver: bridge
+
+volumes:
+  pg_data:
