@@ -7,7 +7,7 @@ LABEL descripcion="api casino online"
 WORKDIR /app
 
 # copiar package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
 # instalar dependencias
 RUN npm ci --omit=dev
