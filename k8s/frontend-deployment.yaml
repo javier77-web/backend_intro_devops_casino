@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: casino-frontend
+  namespace: vidalcasino
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: casino-frontend
+  template:
+    metadata:
+      labels:
+        app: casino-frontend
+    spec:
+      containers:
+        - name: casino-frontend
+          image: 147588477011.dkr.ecr.us-east-1.amazonaws.com/casino-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BACKEND_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: casino-secrets
+                  key: BACKEND_HOST
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "400m"
+              memory: "256Mi"
