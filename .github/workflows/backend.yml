@@ -5,6 +5,9 @@ on:
     branches:
       - deploy
 
+permissions:
+  contents: read
+
 env:
   AWS_REGION: us-east-1
   ECR_BACKEND_REPOSITORY: casino-backend
@@ -44,8 +47,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG \
-            $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
+          docker tag $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
 
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
@@ -59,8 +61,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG ./db
-          docker tag $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG \
-            $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
+          docker tag $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
 
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
@@ -106,26 +107,26 @@ jobs:
         run: |
           kubectl apply -f k8s/db/ -n $NAMESPACE
 
-      - name: Aplicar manifests Backend
-        run: |
-          kubectl apply -f k8s/backend/ -n $NAMESPACE
-
       - name: Actualizar imagen DB
         run: |
           kubectl set image deployment/casino-db \
             casino-db=${{ needs.build-and-push.outputs.db_image }} \
             -n $NAMESPACE
 
+      - name: Esperar rollout DB
+        run: |
+          kubectl rollout status deployment/casino-db \
+            -n $NAMESPACE --timeout=300s
+
+      - name: Aplicar manifests Backend
+        run: |
+          kubectl apply -f k8s/backend/ -n $NAMESPACE
+
       - name: Actualizar imagen Backend
         run: |
           kubectl set image deployment/casino-backend \
             casino-backend=${{ needs.build-and-push.outputs.backend_image }} \
             -n $NAMESPACE
-
-      - name: Esperar rollout DB
-        run: |
-          kubectl rollout status deployment/casino-db \
-            -n $NAMESPACE --timeout=300s
 
       - name: Esperar rollout Backend
         run: |
@@ -135,3 +136,12 @@ jobs:
       - name: Ver recursos finales
         run: |
           kubectl get all -n $NAMESPACE
+
+      - name: Logs backend si falla
+        if: failure()
+        run: |
+          kubectl get all -n $NAMESPACE
+          kubectl describe deployment casino-backend -n $NAMESPACE || true
+          kubectl describe deployment casino-db -n $NAMESPACE || true
+          kubectl logs deployment/casino-backend -n $NAMESPACE --tail=200 || true
+          kubectl logs deployment/casino-db -n $NAMESPACE --tail=200 || true
