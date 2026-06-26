@@ -7,17 +7,19 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: casino-backend
+  ECR_BACKEND_REPOSITORY: casino-backend
+  ECR_DB_REPOSITORY: casino-db
   CLUSTER_NAME: vidalcasino-cluster
   NAMESPACE: vidalcasino
 
 jobs:
   build-and-push:
-    name: Build & Push imagen a ECR
+    name: Build & Push imágenes a ECR
     runs-on: ubuntu-latest
 
     outputs:
-      image: ${{ steps.build-image.outputs.image }}
+      backend_image: ${{ steps.build-backend.outputs.image }}
+      db_image: ${{ steps.build-db.outputs.image }}
 
     steps:
       - name: Checkout
@@ -35,22 +37,37 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build y Push de la imagen
-        id: build-image
+      - name: Build y Push imagen Backend
+        id: build-backend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG .
 
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG \
+                     $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
 
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-                     $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
 
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Build y Push imagen DB
+        id: build-db
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG ./db
+
+          docker tag $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG \
+                     $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
+
+          docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
+
+          echo "image=$ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy en Amazon EKS
@@ -79,13 +96,24 @@ jobs:
         run: |
           kubectl apply -R -f k8s/
 
-      - name: Actualizar imagen del Backend
+      - name: Actualizar imagen DB
+        run: |
+          kubectl set image deployment/casino-db \
+            casino-db=${{ needs.build-and-push.outputs.db_image }} \
+            -n $NAMESPACE
+
+      - name: Actualizar imagen Backend
         run: |
           kubectl set image deployment/casino-backend \
-            casino-backend=${{ needs.build-and-push.outputs.image }} \
+            casino-backend=${{ needs.build-and-push.outputs.backend_image }} \
             -n $NAMESPACE
+
+      - name: Esperar Rollout DB
+        run: |
+          kubectl rollout status deployment/casino-db \
+            -n $NAMESPACE --timeout=180s
 
       - name: Esperar Rollout Backend
         run: |
           kubectl rollout status deployment/casino-backend \
-            -n $NAMESPACE
+            -n $NAMESPACE --timeout=180s
