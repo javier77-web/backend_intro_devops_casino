@@ -77,7 +77,7 @@ jobs:
 
       - name: Aplicar manifiestos de Kubernetes
         run: |
-          kubectl apply -f k8s/
+          kubectl apply -R -f k8s/
 
       - name: Actualizar imagen del Backend
         run: |
@@ -85,24 +85,7 @@ jobs:
             casino-backend=${{ needs.build-and-push.outputs.image }} \
             -n $NAMESPACE
 
-            docker pull ${{ needs.build-and-push.outputs.image }}
-
-            docker stop casino-backend || true
-            docker rm   casino-backend || true
-
-            docker run -d \
-              --name casino-backend \
-              --restart unless-stopped \
-              --network casino-net \
-              -p 3000:3000 \
-              -e PORT=3000 \
-              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              -e DB_HOST=casino-db \
-              -e DB_PORT=5432 \
-              -e DB_USER="${{ secrets.DB_USER }}" \
-              -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-              -e DB_NAME=casino_db \
-              -e CORS_ORIGIN="http://${{ secrets.EC2_FRONTEND_HOST }}" \
-              ${{ needs.build-and-push.outputs.image }}
-
-            echo "✅ Backend desplegado correctamente"
+      - name: Esperar Rollout Backend
+        run: |
+          kubectl rollout status deployment/casino-backend \
+            -n $NAMESPACE
