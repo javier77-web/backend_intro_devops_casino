@@ -44,9 +44,8 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG .
-
           docker tag $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG \
-                     $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
+            $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
 
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
@@ -60,9 +59,8 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG ./db
-
           docker tag $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG \
-                     $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
+            $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
 
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
@@ -92,9 +90,25 @@ jobs:
             --region $AWS_REGION \
             --name $CLUSTER_NAME
 
-      - name: Aplicar manifiestos de Kubernetes
+      - name: Verificar conexión al cluster
         run: |
-          kubectl apply -R -f k8s/
+          kubectl get nodes
+
+      - name: Crear namespace si no existe
+        run: |
+          kubectl get namespace $NAMESPACE || kubectl create namespace $NAMESPACE
+
+      - name: Aplicar secrets
+        run: |
+          kubectl apply -f k8s/casino-secrets.yaml -n $NAMESPACE
+
+      - name: Aplicar manifests DB
+        run: |
+          kubectl apply -f k8s/db/ -n $NAMESPACE
+
+      - name: Aplicar manifests Backend
+        run: |
+          kubectl apply -f k8s/backend/ -n $NAMESPACE
 
       - name: Actualizar imagen DB
         run: |
@@ -108,12 +122,16 @@ jobs:
             casino-backend=${{ needs.build-and-push.outputs.backend_image }} \
             -n $NAMESPACE
 
-      - name: Esperar Rollout DB
+      - name: Esperar rollout DB
         run: |
           kubectl rollout status deployment/casino-db \
-            -n $NAMESPACE --timeout=180s
+            -n $NAMESPACE --timeout=300s
 
-      - name: Esperar Rollout Backend
+      - name: Esperar rollout Backend
         run: |
           kubectl rollout status deployment/casino-backend \
-            -n $NAMESPACE --timeout=180s
+            -n $NAMESPACE --timeout=300s
+
+      - name: Ver recursos finales
+        run: |
+          kubectl get all -n $NAMESPACE
