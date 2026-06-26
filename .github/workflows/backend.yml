@@ -48,10 +48,8 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
-
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:latest
-
           echo "image=$ECR_REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Build y Push imagen DB
@@ -62,10 +60,8 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG ./db
           docker tag $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
-
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_DB_REPOSITORY:latest
-
           echo "image=$ECR_REGISTRY/$ECR_DB_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   deploy:
@@ -115,8 +111,7 @@ jobs:
 
       - name: Esperar rollout DB
         run: |
-          kubectl rollout status deployment/casino-db \
-            -n $NAMESPACE --timeout=300s
+          kubectl rollout status deployment/casino-db -n $NAMESPACE --timeout=300s
 
       - name: Aplicar manifests Backend
         run: |
@@ -130,18 +125,37 @@ jobs:
 
       - name: Esperar rollout Backend
         run: |
-          kubectl rollout status deployment/casino-backend \
-            -n $NAMESPACE --timeout=300s
+          kubectl rollout status deployment/casino-backend -n $NAMESPACE --timeout=300s
 
       - name: Ver recursos finales
         run: |
           kubectl get all -n $NAMESPACE
+          kubectl get pods -n $NAMESPACE -o wide
+          kubectl get rs -n $NAMESPACE
 
-      - name: Logs backend si falla
+      - name: Debug si falla
         if: failure()
         run: |
-          kubectl get all -n $NAMESPACE
+          echo "=== GET ALL ==="
+          kubectl get all -n $NAMESPACE || true
+
+          echo "=== REPLICASETS ==="
+          kubectl get rs -n $NAMESPACE || true
+
+          echo "=== DESCRIBE BACKEND DEPLOYMENT ==="
           kubectl describe deployment casino-backend -n $NAMESPACE || true
+
+          echo "=== DESCRIBE DB DEPLOYMENT ==="
           kubectl describe deployment casino-db -n $NAMESPACE || true
+
+          echo "=== PODS BACKEND ==="
+          kubectl get pods -n $NAMESPACE -l app=casino-backend -o wide || true
+
+          echo "=== DESCRIBE PODS BACKEND ==="
+          kubectl describe pod -n $NAMESPACE -l app=casino-backend || true
+
+          echo "=== LOGS BACKEND ==="
           kubectl logs deployment/casino-backend -n $NAMESPACE --tail=200 || true
+
+          echo "=== LOGS DB ==="
           kubectl logs deployment/casino-db -n $NAMESPACE --tail=200 || true
