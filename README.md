@@ -1,70 +1,97 @@
 # casino-backend
 
-Backend del **Casino Online** — Experiencia 2 de la asignatura
+Backend principal del proyecto **VidalCasino**, desarrollado para la asignatura  
 **Introducción a Herramientas DevOps (ISY1101)**.
 
-API REST en Node.js + Express con PostgreSQL como base de datos.
+Este repositorio contiene la API principal del sistema, la configuración de base de datos y los manifiestos de Kubernetes asociados al **backend** y a la **BD**.  
+Los demás componentes del sistema, como frontend, bonos, apuestas y estadísticas, se gestionan en repositorios separados con su propia carpeta `k8s/`. 
 
-> **Este repositorio NO incluye `Dockerfile`, `docker-compose.yml`
-> ni workflows de GitHub Actions.** Esos artefactos forman parte del
-> entregable de la **Evaluación Parcial 2** y deben construirlos los
-> estudiantes (frontend + backend + base de datos contenerizados,
-> publicados en un registry y desplegados en EC2).
+---
+
+## Descripción
+
+`casino-backend` expone la API REST principal del sistema, encargada de autenticación, gestión de usuarios, operaciones base y comunicación con PostgreSQL.  
+Su despliegue está pensado para ejecutarse en contenedores y ser orquestado con Kubernetes, siguiendo prácticas de configuración por variables de entorno, health checks, secrets y despliegue automatizado.
+
+---
+
+## Alcance del repositorio
+
+Este repositorio incluye únicamente:
+
+- Código fuente del backend.
+- Configuración e inicialización de la base de datos.
+- Manifiestos de Kubernetes del backend y la base de datos.
+- Archivos de apoyo para despliegue y desarrollo.
+
+Este repositorio **no** incluye los manifiestos Kubernetes de los demás microservicios.  
+Cada servicio complementario del sistema mantiene su propio repositorio y su propia estructura de despliegue.
 
 ---
 
 ## Stack
 
-- Node.js 20 (recomendado correr sobre `node:20-alpine`)
+- Node.js 20
 - Express 4
-- PostgreSQL 16 (recomendado `postgres:16-alpine` con volumen nombrado)
-- JWT para autenticación, bcryptjs para hashes
-- `pg` como cliente de Postgres
+- PostgreSQL 16
+- JWT para autenticación
+- bcryptjs para hash de contraseñas
+- `pg` como cliente PostgreSQL
+- Kubernetes
+- Docker
+- GitHub Actions
+- Amazon ECR / Amazon EKS
 
 ---
 
 ## Estructura
 
-```
+```text
 casino-backend/
 ├── src/
-│   ├── server.js                ← bootstrap Express + rutas
+│   ├── server.js
 │   ├── db/
-│   │   ├── pool.js              ← Pool de pg + esperarBD()
-│   │   └── seed.js              ← usuarios demo (idempotente)
+│   │   ├── pool.js
+│   │   └── seed.js
 │   ├── middleware/
-│   │   └── auth.js              ← JWT firmar / requiereAuth
+│   │   └── auth.js
 │   ├── routes/
-│   │   ├── auth.js              ← /api/auth/login | register
-│   │   ├── users.js             ← /api/usuarios/me, depositar
-│   │   ├── games.js             ← /api/juegos/{slots,roulette,blackjack}
-│   │   └── transactions.js      ← /api/transacciones (historial)
+│   │   ├── auth.js
+│   │   ├── users.js
+│   │   ├── games.js
+│   │   └── transactions.js
 │   └── games/
 │       ├── slots.js
 │       ├── roulette.js
 │       └── blackjack.js
 ├── db/
-│   └── init.sql                 ← esquema (lo monta Postgres en /docker-entrypoint-initdb.d)
+│   └── init.sql
+├── k8s/
+│   ├── backend/
+│   └── db/
 ├── package.json
 ├── .gitignore
-└── .env.example
+├── .env.example
+└── README.md
 ```
+
+> Los manifiestos `k8s/` incluidos aquí corresponden solo al backend y la base de datos.
 
 ---
 
 ## Variables de entorno
 
-| Variable        | Default       | Descripción                                   |
-|-----------------|---------------|-----------------------------------------------|
-| `PORT`          | `3000`        | Puerto HTTP del servidor                      |
-| `JWT_SECRET`    | `cambiame`    | Secreto de firma JWT (cambiar en producción)  |
-| `JWT_EXPIRES_IN`| `8h`          | Vigencia del token                            |
-| `DB_HOST`       | `localhost`   | Host de Postgres (`db` en docker-compose)     |
-| `DB_PORT`       | `5432`        | Puerto Postgres                               |
-| `DB_USER`       | `casino`      | Usuario Postgres                              |
-| `DB_PASSWORD`   | `casino`      | Password Postgres                             |
-| `DB_NAME`       | `casino_db`   | Base de datos                                 |
-| `CORS_ORIGIN`   | `*`           | Lista CSV de orígenes permitidos              |
+| Variable | Default | Descripción |
+|---|---|---|
+| `PORT` | `3000` | Puerto HTTP del servidor |
+| `JWT_SECRET` | `cambiame` | Secreto de firma JWT |
+| `JWT_EXPIRES_IN` | `8h` | Vigencia del token |
+| `DB_HOST` | `localhost` | Host de PostgreSQL |
+| `DB_PORT` | `5432` | Puerto de PostgreSQL |
+| `DB_USER` | `casino` | Usuario de base de datos |
+| `DB_PASSWORD` | `casino` | Contraseña de base de datos |
+| `DB_NAME` | `casino_db` | Nombre de la base de datos |
+| `CORS_ORIGIN` | `*` | Orígenes permitidos |
 
 ---
 
@@ -72,135 +99,137 @@ casino-backend/
 
 ### Autenticación
 
-| Método | Ruta                  | Descripción                              |
-|--------|-----------------------|------------------------------------------|
-| POST   | `/api/auth/register`  | Registro `{ username, email, password }` |
-| POST   | `/api/auth/login`     | Login `{ username, password }`           |
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/auth/register` | Registro de usuario |
+| POST | `/api/auth/login` | Inicio de sesión |
 
-### Usuario autenticado (header `Authorization: Bearer <token>`)
+### Usuario autenticado
 
-| Método | Ruta                                  | Descripción                       |
-|--------|---------------------------------------|-----------------------------------|
-| GET    | `/api/usuarios/me`                    | Datos del usuario y saldo         |
-| POST   | `/api/usuarios/me/depositar`          | `{ monto }` — recarga saldo demo  |
-| GET    | `/api/transacciones?limit=50`         | Historial del usuario             |
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/usuarios/me` | Obtiene datos del usuario |
+| POST | `/api/usuarios/me/depositar` | Recarga saldo demo |
+| GET | `/api/transacciones?limit=50` | Historial del usuario |
 
 ### Juegos
 
-| Método | Ruta                              | Descripción                                                    |
-|--------|-----------------------------------|----------------------------------------------------------------|
-| GET    | `/api/juegos`                     | Catálogo (slots, roulette, blackjack)                          |
-| POST   | `/api/juegos/slots/jugar`         | `{ apuesta }` → `{ resultado, saldo }`                         |
-| POST   | `/api/juegos/roulette/jugar`      | `{ apuestas:[{tipo,valor,monto}] }` → `{ resultado, saldo }`  |
-| POST   | `/api/juegos/blackjack/iniciar`   | `{ apuesta }` → `{ sesionId, jugador, banca, ... }`            |
-| POST   | `/api/juegos/blackjack/accion`    | `{ sesionId, accion: pedir/plantarse/doblar }`                 |
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/juegos` | Catálogo de juegos |
+| POST | `/api/juegos/slots/jugar` | Ejecuta partida de slots |
+| POST | `/api/juegos/roulette/jugar` | Ejecuta jugada de ruleta |
+| POST | `/api/juegos/blackjack/iniciar` | Inicia sesión de blackjack |
+| POST | `/api/juegos/blackjack/accion` | Ejecuta acción sobre blackjack |
 
 ### Salud
 
-| Método | Ruta       | Descripción                  |
-|--------|------------|------------------------------|
-| GET    | `/health`  | Estado del servidor + BD     |
-| GET    | `/`        | Mensaje de bienvenida        |
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/health` | Estado del servidor y BD |
+| GET | `/` | Mensaje de bienvenida |
 
 ---
 
-## Usuarios demo (sembrados al arrancar)
+## Usuarios demo
 
-| username   | password    | rol      | saldo inicial |
-|------------|-------------|----------|---------------|
-| `demo`     | `demo1234`  | jugador  | $5.000        |
-| `jugador1` | `demo1234`  | jugador  | $1.000        |
-| `admin`    | `admin1234` | admin    | $99.999       |
+| username | password | rol | saldo inicial |
+|---|---|---|---:|
+| `demo` | `demo1234` | jugador | $5.000 |
+| `jugador1` | `demo1234` | jugador | $1.000 |
+| `admin` | `admin1234` | admin | $99.999 |
 
 ---
 
-## Cómo correr en local (sin Docker)
+## Ejecución local
 
-Requisitos: Node 20 y un Postgres accesible.
+Requisitos:
+
+- Node.js 20
+- PostgreSQL accesible
+- Variables de entorno configuradas
 
 ```bash
-cp .env.example .env          # ajustar credenciales
-npm install                   # genera node_modules (y package-lock.json local, no se commitea)
+cp .env.example .env
+npm install
 npm start
-# API disponible en http://localhost:3000
+```
+
+API disponible en:
+
+```bash
+http://localhost:3000
 ```
 
 ---
 
-## Conceptos DevOps clave del código
+## Kubernetes
 
-Los siguientes puntos son relevantes para la contenerización y despliegue en EC2.
-Busca los comentarios en el código fuente para mayor detalle.
+El backend se despliega con un **Deployment** y un **Service**, mientras que la base de datos se define con su manifiesto correspondiente según la arquitectura del proyecto.  
+La configuración sensible se inyecta mediante variables de entorno y secretos, evitando credenciales hardcodeadas y facilitando el despliegue reproducible.
 
-### 1. Configuración por variables de entorno (12-factor App)
-Toda la configuración sensible o que cambia entre ambientes (host de la BD,
-contraseña, JWT_SECRET, puerto) viene de variables de entorno, nunca
-hardcodeada. En Docker se inyectan con `-e`, en `docker-compose.yml` con la
-sección `environment:`, y en EC2 se pueden usar secretos de AWS.
-
-### 2. Endpoint `/health` y Docker HEALTHCHECK
-`GET /health` consulta la BD y responde `{ status: "ok" }` o `503`.
-Docker lo usa en el `HEALTHCHECK` del `Dockerfile`; los Load Balancers de AWS
-lo usan para enrutar tráfico solo hacia instancias/contenedores sanos.
-Deben configurar este endpoint como HEALTHCHECK en el Dockerfile del backend
-y como health check en el servicio de docker-compose.
-
-### 3. Binding a `0.0.0.0`
-El servidor escucha en `0.0.0.0` (todas las interfaces), no en `localhost`.
-Dentro de un contenedor, `localhost` solo aceptaría conexiones originadas
-dentro del mismo contenedor; `0.0.0.0` permite que el host (EC2) y otros
-contenedores puedan acceder.
-
-### 4. Reintentos de conexión a la BD (`esperarBD`)
-Cuando `docker-compose up` levanta varios servicios a la vez, el backend
-puede arrancar antes de que Postgres esté listo. `esperarBD()` reintenta
-hasta 30 veces con 2 s de espera. La solución definitiva es combinar esto
-con `depends_on: condition: service_healthy` y un `healthcheck` en el
-servicio `db` usando `pg_isready`.
-
-### 5. Inicialización del esquema (`db/init.sql`)
-Postgres ejecuta los archivos `.sql` en `/docker-entrypoint-initdb.d/`
-**solo si el volumen está vacío** (primer arranque). En reinicios
-posteriores el script no se vuelve a ejecutar. Por eso todas las
-sentencias DDL usan `IF NOT EXISTS`. Deben montar este archivo en el
-contenedor de la BD usando la sección `volumes:` del docker-compose.yml.
-
-### 6. Seed idempotente
-`seed.js` inserta usuarios demo al arrancar el backend usando
-`ON CONFLICT DO NOTHING`, por lo que es seguro ejecutarlo en cada
-reinicio del contenedor sin riesgo de duplicar datos ni fallar.
-
-### 7. Pool de conexiones
-`pg.Pool` mantiene hasta 10 conexiones abiertas simultáneamente.
-En producción este valor debe ajustarse según la instancia RDS/Postgres
-y la cantidad de réplicas del contenedor.
+Además, el servicio puede incorporar sondas de salud para distinguir entre estado vivo y estado listo, permitiendo mejor integración con Kubernetes y mejor comportamiento ante fallos.
 
 ---
 
-## Cómo lo van a contenerizar (EP2)
+## Conceptos DevOps aplicados
 
-El docente espera que ustedes:
+### 1. Configuración por entorno
+Toda la configuración importante se resuelve mediante variables de entorno.  
+Esto permite mover el backend entre desarrollo, pruebas y producción sin modificar el código fuente.
 
-1. Construyan un **Dockerfile multi-stage** (`builder` con `npm install`,
-   `runtime` `node:20-alpine` con usuario no root).
-2. Definan en el `docker-compose.yml` los servicios `db`, `backend`
-   (y agreguen el `frontend`) con:
-   - `pg_data` como **named volume** para `/var/lib/postgresql/data`.
-   - `./casino-backend/db/init.sql` montado en `/docker-entrypoint-initdb.d/`
-     (recuerden: solo se ejecuta si el volumen está vacío).
-   - `depends_on` con `condition: service_healthy` y un `healthcheck`
-     en `db` (`pg_isready`).
-   - Variables de entorno **inyectadas por compose**, sin hard-codear.
-3. Configuren workflows en `.github/workflows/` que hagan
-   `build → push (ECR) → deploy` en EC2 al hacer push a la rama
-   correspondiente (en el **Ejercicio 2.5** se usa `main`; en la
-   **EP2** la pauta oficial pide la rama `deploy`).
+### 2. Health checks
+El endpoint `/health` permite verificar disponibilidad del proceso y conectividad con la base de datos.  
+Esto facilita el uso de liveness/readiness y ayuda a automatizar recuperación y balanceo.
 
-Lean la pauta oficial (`EP2_Instrucciones y Pauta_Encargo_Estudiante.pdf`)
-para los criterios completos.
+### 3. Reintento de conexión a BD
+El backend considera escenarios en que PostgreSQL aún no está listo al momento del arranque.  
+Por eso se usa una lógica de espera/reintentos antes de iniciar completamente la aplicación.
+
+### 4. Seed idempotente
+La carga de usuarios demo está diseñada para no duplicarse en reinicios.  
+Esto facilita pruebas repetibles sin dañar el estado base.
+
+### 5. Seguridad
+Los secretos no deben quedar escritos en el código, commits o capturas.  
+En despliegue, deben inyectarse desde Secret de Kubernetes o desde el pipeline de CI/CD.
 
 ---
 
-## Repositorio del frontend
+## Pipeline CI/CD
 
-[`casino-frontend`](../casino-frontend)
+El flujo de integración y despliegue continuo considera:
+
+1. Build de imagen Docker.
+2. Push de imagen a Amazon ECR.
+3. Despliegue en Amazon EKS.
+
+La automatización se ejecuta mediante GitHub Actions y permite mantener trazabilidad entre commit, imagen publicada y versión desplegada. 
+
+---
+
+## Relación con otros repositorios
+
+Este backend forma parte de una solución distribuida más grande.  
+Los siguientes componentes viven en repositorios separados:
+
+- `casino-frontend`
+- `casino-bonos`
+- `casino-apuestas`
+- `casino-estadisticas`
+
+Cada uno mantiene su propio código fuente y sus propios manifiestos de Kubernetes.
+
+---
+
+## Evidencias asociadas
+
+Este repositorio puede utilizarse para respaldar evidencias como:
+
+- README del repositorio
+- historial de commits con prefijos
+- manifiestos Kubernetes del backend y BD
+- configuración por variables de entorno
+- integración con CI/CD
+- despliegue y operación del backend en clúster
+
